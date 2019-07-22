@@ -36,7 +36,7 @@ void BackOfVisualWordsClassifier::computeSiftFeatures()
         descriptors_per_image.push_back(descriptors);
         class_per_image.push_back(it.label);
     }
-    cout << "rows: " << SIFT_descriptors->rows << " cols "  << SIFT_descriptors->cols << endl;
+    //cout << "rows: " << SIFT_descriptors->rows << " cols "  << SIFT_descriptors->cols << endl;
 
 
 
@@ -49,7 +49,7 @@ void BackOfVisualWordsClassifier::computeSiftFeatures()
 void BackOfVisualWordsClassifier::computeVocabulary()
 {
     Mat k_labels;
-    int attempts = 5, iterationNumber = 16;//1000;
+    int attempts = 5, iterationNumber = 200;//1000;
 
 	kmeans(*SIFT_descriptors, vocabulary_size, k_labels, 
             TermCriteria(CV_TERMCRIT_ITER | CV_TERMCRIT_EPS, iterationNumber, 1e-4), 
@@ -62,6 +62,8 @@ void BackOfVisualWordsClassifier::computeVocabulary()
 	   vocuabulary_histogram.push_back(getHistogram(it,k_centers));
     }
 
+    //writeCSV("/home/michael/Documents/CV_projects/Back_of_Words/test.csv",vocuabulary_histogram);
+
 
 
 
@@ -73,7 +75,7 @@ void BackOfVisualWordsClassifier::computeVocabulary()
 */
 Mat BackOfVisualWordsClassifier::getHistogram(Mat &SIFT_descriptors, Mat &centers)
 {
-    Mat histogram(1,vocabulary_size,CV_32FC1);
+    Mat histogram = Mat::zeros(1,vocabulary_size,CV_32FC1);
     BFMatcher matcher;
 	vector<DMatch> matches;
     matcher.match(SIFT_descriptors, centers, matches);
@@ -82,8 +84,11 @@ Mat BackOfVisualWordsClassifier::getHistogram(Mat &SIFT_descriptors, Mat &center
     {
 		histogram.at<float>(0, matches.at(i).trainIdx) +=  + 1;
 	}
-    return histogram;
-
+    //normalize histogram
+    Mat norm;
+    cv::normalize(histogram,norm);
+    return norm;
+   
 }
 
 
@@ -93,23 +98,18 @@ Mat BackOfVisualWordsClassifier::getHistogram(Mat &SIFT_descriptors, Mat &center
 */
 void BackOfVisualWordsClassifier::trainClassifier()
 {
-    //create trainings data
+    //create openCV train data
     assert((int)class_per_image.size() == vocuabulary_histogram.rows);
     Mat test(class_per_image.size(),1,CV_32S, class_per_image.data());
-    // for(uint i=0; i < class_per_image.size(); i++)
-    //     test.at<int>(i,0) = class_per_image[i];
-
-
-    //cout << test << endl;
     Ptr<TrainData> train_data = TrainData::create(vocuabulary_histogram, ml::ROW_SAMPLE, test);
   
-
+    //init classifier
     svm_calssifier = SVM::create();
 	svm_calssifier->setType(SVM::C_SVC);
 	svm_calssifier->setKernel(SVM::LINEAR);
 	svm_calssifier->setTermCriteria(TermCriteria(TermCriteria::MAX_ITER, 1e4, 1e-6));
-	// Train the SVM with given parameters
-	
+
+	//train classifier
     svm_calssifier->train(train_data);
 
 }
